@@ -1,5 +1,5 @@
 import { settingsRepository } from '../db/repositories';
-import { toolsToFunctionDefinitions, executeTool, type ToolCall } from './tools';
+import { toolsToFunctionDefinitions, executeTool, type ToolCall } from './toolRegistry';
 
 export interface StreamCallbacks {
   onToken: (token: string) => void;

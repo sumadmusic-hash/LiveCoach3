@@ -1,0 +1,1 @@
+import{r,e as i}from"./index-BinYdIDR.js";function e(t){r(1,arguments);var a=i(t);return a.setHours(0,0,0,0),a}function u(t,a){r(2,arguments);var s=e(t),n=e(a);return s.getTime()===n.getTime()}function f(t){return r(1,arguments),u(t,Date.now())}export{u as a,f as i,e as s};
