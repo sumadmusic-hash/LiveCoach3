@@ -5,6 +5,30 @@ import { useUiStore } from '../../core/state/stores';
 import { Settings as SettingsIcon, Save, Download, Upload, Shield, Key } from 'lucide-react';
 import toast from 'react-hot-toast';
 
+function getDefaultUrl(provider: string): string {
+  switch (provider) {
+    case 'groq': return 'https://api.groq.com/openai/v1';
+    case 'openai': return 'https://api.openai.com/v1';
+    case 'anthropic': return 'https://api.anthropic.com/v1';
+    case 'ollama': return 'http://localhost:11434/v1';
+    case 'gemini': return 'https://generativelanguage.googleapis.com/v1beta/openai';
+    case 'openrouter': return 'https://openrouter.ai/api/v1';
+    default: return '';
+  }
+}
+
+function getDefaultModel(provider: string): string {
+  switch (provider) {
+    case 'groq': return 'llama-3.3-70b-versatile';
+    case 'openai': return 'gpt-4o-mini';
+    case 'anthropic': return 'claude-3-5-sonnet-20241022';
+    case 'ollama': return 'llama3.2';
+    case 'gemini': return 'gemini-2.0-flash';
+    case 'openrouter': return 'meta-llama/llama-3.3-70b-instruct';
+    default: return '';
+  }
+}
+
 export default function SettingsView() {
   const { theme, setTheme } = useUiStore();
   const [settings, setSettings] = useState<Settings | null>(null);
@@ -92,10 +116,11 @@ export default function SettingsView() {
           </select>
           {provider && (
             <>
-              <input value={baseUrl} onChange={e => setBaseUrl(e.target.value)} placeholder={provider === 'ollama' ? 'http://localhost:11434' : 'API Base URL'} className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-transparent text-sm" />
-              <input value={model} onChange={e => setModel(e.target.value)} placeholder="Modell (z.B. gpt-4, claude-3)" className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-transparent text-sm" />
+              <input value={baseUrl} onChange={e => setBaseUrl(e.target.value)} placeholder={getDefaultUrl(provider)} className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-transparent text-sm" />
+              <input value={model} onChange={e => setModel(e.target.value)} placeholder={getDefaultModel(provider)} className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-transparent text-sm" />
               <input type="password" value={apiKey} onChange={e => setApiKey(e.target.value)} placeholder="API-Key" className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-transparent text-sm" />
               <p className="text-xs text-gray-400 flex items-center gap-1"><Shield size={12} /> Key wird nur lokal gespeichert und nicht exportiert.</p>
+              <p className="text-xs text-indigo-500">💡 Standard: {getDefaultUrl(provider)} / {getDefaultModel(provider)}</p>
             </>
           )}
         </div>
