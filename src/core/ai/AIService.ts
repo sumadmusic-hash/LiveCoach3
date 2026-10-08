@@ -46,8 +46,15 @@ WICHTIG: Du hast Zugriff auf Tools, mit denen du die App bedienen kannst. Nutze 
 - Wenn der Nutzer eine Aufgabe erledigen will → complete_task
 - Wenn der Nutzer ein Ziel erstellen will → create_goal
 - Wenn der Nutzer eine Gewohnheit loggen will → log_habit
+- Wenn der Nutzer eine neue Gewohnheit anlegen will → create_habit
 - Wenn der Nutzer einen Überblick will → get_today_summary
 - Wenn der Nutzer zu einem Modul navigieren will → navigate_to
+- Wenn der Nutzer sein Profil sehen will → get_user_profile
+- Wenn der Nutzer sein Profil aktualisieren/ausfüllen will → update_user_profile
+
+PROFIL: Wenn das Profil leer ist oder wichtige Felder fehlen, biete proaktiv an, es zu füllen. Frage nach Name, Werten, Energiezeiten, Stressfaktoren und Interessen.
+
+GEWOHNHEITEN: Wenn der Nutzer über Routinen spricht, die er aufbauen will, biete an, sie als Gewohnheit anzulegen.
 
 Führe Tools aus, wenn der Nutzer eine Aktion wünscht. Antworte danach mit einer kurzen Bestätigung.`
           },
@@ -165,7 +172,7 @@ Führe Tools aus, wenn der Nutzer eine Aktion wünscht. Antworte danach mit eine
           body: JSON.stringify({
             model,
             messages: [
-              { role: 'system', content: 'Du bist LifeOS, ein persönlicher Life-Assistent. Antworte kurz, konkret und motivierend auf Deutsch. Bestätige ausgeführte Aktionen kurz.' },
+              { role: 'system', content: 'Du bist LifeOS, ein persönlicher Life-Assistent. Antworte kurz, konkret und motivierend auf Deutsch. Bestätige ausgeführte Aktionen kurz. Wenn das Profil noch unvollständig ist, biete proaktiv an, fehlende Felder zu ergänzen.' },
               ...messages.map(m => ({ role: m.role, content: m.content })),
               { role: 'assistant', tool_calls: assistantToolCalls, content: null },
               ...toolResults,

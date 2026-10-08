@@ -3,7 +3,7 @@ import { taskRepository } from '../db/repositories/taskRepo';
 import { goalRepository } from '../db/repositories/goalRepo';
 import { habitRepository } from '../db/repositories/habitRepo';
 import { journalRepository } from '../db/repositories/journalRepo';
-import { jobRepository, calendarRepository } from '../db/repositories';
+import { jobRepository, calendarRepository, profileRepository } from '../db/repositories';
 import { moduleRegistry, type ModuleId } from '../modules/ModuleRegistry';
 import type { Priority, JobPhase } from '../schemas';
 import { format, subDays, startOfWeek, endOfWeek, eachDayOfInterval } from 'date-fns';
@@ -378,6 +378,107 @@ export const tools: ToolDefinition[] = [
         success: true, 
         data: event,
         displayMessage: `📅 Termin "${event.title}" am ${args.date} erstellt`
+      };
+    },
+  },
+  {
+    name: 'get_user_profile',
+    description: 'Liest das Benutzerprofil. Zeigt Name, Werte, Energiezeiten, Stressfaktoren, Kommunikationsstil und Interessen.',
+    parameters: z.object({}),
+    execute: async () => {
+      const profile = await profileRepository.get();
+      if (!profile) {
+        return { 
+          success: true, 
+          displayMessage: '👤 Profil ist leer. Nutze update_user_profile um es zu füllen.'
+        };
+      }
+      let summary = `👤 **Profil**\n\n`;
+      summary += profile.name ? `**Name:** ${profile.name}\n` : '**Name:** (nicht gesetzt)\n';
+      summary += profile.values.length > 0 ? `**Werte:** ${profile.values.join(', ')}\n` : '**Werte:** (nicht gesetzt)\n';
+      summary += profile.energyTimes.length > 0 ? `**Energiezeiten:** ${profile.energyTimes.join(', ')}\n` : '**Energiezeiten:** (nicht gesetzt)\n';
+      summary += profile.stressFactors.length > 0 ? `**Stressfaktoren:** ${profile.stressFactors.join(', ')}\n` : '**Stressfaktoren:** (nicht gesetzt)\n';
+      summary += `**Kommunikationsstil:** ${profile.communicationStyle}\n`;
+      summary += profile.interests.length > 0 ? `**Interessen:** ${profile.interests.join(', ')}\n` : '**Interessen:** (nicht gesetzt)\n';
+      return { 
+        success: true, 
+        data: profile,
+        displayMessage: summary
+      };
+    },
+  },
+  {
+    name: 'update_user_profile',
+    description: 'Aktualisiert das Benutzerprofil. Kann einzelne Felder setzen oder ergänzen. Wenn Felder fehlen, können sie hier gesetzt werden.',
+    parameters: z.object({
+      name: z.string().optional().describe('Name des Benutzers'),
+      values: z.array(z.string()).optional().describe('Persönliche Werte (z.B. Familie, Gesundheit, Lernen)'),
+      energyTimes: z.array(z.string()).optional().describe('Zeiten mit hoher Energie (z.B. Morgens 8-11)'),
+      stressFactors: z.array(z.string()).optional().describe('Stressfaktoren (z.B. Zeitdruck, Unklarheit)'),
+      communicationStyle: z.enum(['balanced', 'direct', 'warm', 'analytical']).optional().describe('Bevorzugter Kommunikationsstil'),
+      interests: z.array(z.string()).optional().describe('Interessen/Hobbys'),
+    }),
+    execute: async (args) => {
+      const updates: Record<string, unknown> = {};
+      const changes: string[] = [];
+      
+      if (args.name !== undefined) {
+        updates.name = args.name;
+        changes.push(`Name: ${args.name}`);
+      }
+      if (args.values !== undefined) {
+        updates.values = args.values;
+        changes.push(`Werte: ${(args.values as string[]).join(', ')}`);
+      }
+      if (args.energyTimes !== undefined) {
+        updates.energyTimes = args.energyTimes;
+        changes.push(`Energiezeiten: ${(args.energyTimes as string[]).join(', ')}`);
+      }
+      if (args.stressFactors !== undefined) {
+        updates.stressFactors = args.stressFactors;
+        changes.push(`Stressfaktoren: ${(args.stressFactors as string[]).join(', ')}`);
+      }
+      if (args.communicationStyle !== undefined) {
+        updates.communicationStyle = args.communicationStyle;
+        changes.push(`Kommunikationsstil: ${args.communicationStyle}`);
+      }
+      if (args.interests !== undefined) {
+        updates.interests = args.interests;
+        changes.push(`Interessen: ${(args.interests as string[]).join(', ')}`);
+      }
+      
+      if (Object.keys(updates).length === 0) {
+        return { success: false, error: 'Keine Felder zum Aktualisieren angegeben' };
+      }
+      
+      await profileRepository.save(updates);
+      return { 
+        success: true, 
+        data: updates,
+        displayMessage: `✅ Profil aktualisiert:\n${changes.map(c => `  • ${c}`).join('\n')}`
+      };
+    },
+  },
+  {
+    name: 'create_habit',
+    description: 'Erstellt eine neue Gewohnheit. Die Gewohnheit wird täglich getrackt.',
+    parameters: z.object({
+      name: z.string().describe('Name der Gewohnheit (z.B. Meditation, Sport, Lesen)'),
+      color: z.string().optional().default('#6366f1').describe('Farbe als Hex-Code (z.B. #6366f1)'),
+      frequency: z.enum(['daily', 'weekly']).optional().default('daily').describe('Häufigkeit: daily oder weekly'),
+    }),
+    execute: async (args) => {
+      const habit = await habitRepository.create({
+        name: args.name as string,
+        color: (args.color as string) || '#6366f1',
+        frequency: (args.frequency as 'daily' | 'weekly') || 'daily',
+        archived: false,
+        targetPerWeek: args.frequency === 'weekly' ? 3 : 7,
+      });
+      return { 
+        success: true, 
+        data: habit,
+        displayMessage: `✅ Gewohnheit "${habit.name}" erstellt (${habit.frequency === 'daily' ? 'täglich' : 'wöchentlich'})`
       };
     },
   },
