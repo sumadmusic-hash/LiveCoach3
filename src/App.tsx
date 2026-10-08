@@ -1,6 +1,5 @@
 import React, { Suspense, lazy, useState, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
-import { moduleRegistry, getModule, type ModuleId } from './core/modules/ModuleRegistry';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useUiStore } from './core/state/stores';
 import { Layout } from './app/Layout';
 import { CommandPalette } from './components/CommandPalette';
@@ -76,7 +75,6 @@ function ThemeProvider({ children }: { children: React.ReactNode }) {
 }
 
 function KeyboardShortcuts() {
-  const navigate = useNavigate();
   const { toggleSidebar, setCommandPaletteOpen } = useUiStore();
 
   useEffect(() => {
@@ -94,16 +92,10 @@ function KeyboardShortcuts() {
         const current = useUiStore.getState().theme;
         useUiStore.getState().setTheme(current === 'dark' ? 'light' : 'dark');
       }
-      const num = parseInt(e.key);
-      if (!isNaN(num) && num >= 1 && num <= 9 && !e.metaKey && !e.ctrlKey) {
-        const primary = moduleRegistry.filter(m => m.group === 'primary');
-        const mod = primary[num - 1];
-        if (mod) navigate(mod.route);
-      }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [navigate, toggleSidebar, setCommandPaletteOpen]);
+  }, [toggleSidebar, setCommandPaletteOpen]);
 
   return null;
 }
