@@ -126,7 +126,7 @@ function getDefaultBaseUrl(provider: string): string {
 
 function getDefaultModel(provider: string): string {
   switch (provider) {
-    case 'groq': return 'llama-3.3-70b-versatile';
+    case 'groq': return 'qwen/qwen3-27b';
     case 'openai': return 'gpt-4o-mini';
     case 'anthropic': return 'claude-3-5-sonnet-20241022';
     case 'ollama': return 'llama3.2';

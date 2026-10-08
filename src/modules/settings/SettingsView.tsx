@@ -19,7 +19,7 @@ function getDefaultUrl(provider: string): string {
 
 function getDefaultModel(provider: string): string {
   switch (provider) {
-    case 'groq': return 'llama-3.3-70b-versatile';
+    case 'groq': return 'qwen/qwen3-27b';
     case 'openai': return 'gpt-4o-mini';
     case 'anthropic': return 'claude-3-5-sonnet-20241022';
     case 'ollama': return 'llama3.2';
@@ -121,6 +121,13 @@ export default function SettingsView() {
               <input type="password" value={apiKey} onChange={e => setApiKey(e.target.value)} placeholder="API-Key" className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-transparent text-sm" />
               <p className="text-xs text-gray-400 flex items-center gap-1"><Shield size={12} /> Key wird nur lokal gespeichert und nicht exportiert.</p>
               <p className="text-xs text-indigo-500">💡 Standard: {getDefaultUrl(provider)} / {getDefaultModel(provider)}</p>
+              {provider === 'groq' && (
+                <div className="p-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded text-xs text-amber-700 dark:text-amber-300">
+                  <p className="font-medium mb-1">⚠️ CORS-Hinweis für Groq</p>
+                  <p>Groq blockt direkte Browser-Requests. Lösung: Nutze einen lokalen Proxy oder <strong>OpenRouter</strong> (gleiches Modell, CORS-freundlich).</p>
+                  <p className="mt-1">Proxy starten: <code className="bg-amber-100 dark:bg-amber-900/40 px-1 rounded">npx groq-cors-proxy</code></p>
+                </div>
+              )}
             </>
           )}
         </div>
