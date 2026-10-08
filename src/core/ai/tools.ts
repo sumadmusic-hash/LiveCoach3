@@ -482,6 +482,26 @@ export const tools: ToolDefinition[] = [
       };
     },
   },
+  {
+    name: 'get_current_datetime',
+    description: 'Gibt das aktuelle Datum und die aktuelle Uhrzeit zurück. Nutze dieses Tool, wenn du zeitbezogene Fragen beantworten musst.',
+    parameters: z.object({}),
+    execute: async () => {
+      const now = new Date();
+      const date = format(now, 'yyyy-MM-dd');
+      const time = format(now, 'HH:mm');
+      const weekday = format(now, 'EEEE');
+      const weekNumber = format(now, 'I');
+      
+      const summary = `📅 **Aktuelles Datum & Uhrzeit**\n\n**Datum:** ${date}\n**Uhrzeit:** ${time}\n**Wochentag:** ${weekday}\n**Kalenderwoche:** ${weekNumber}\n`;
+      
+      return { 
+        success: true, 
+        data: { date, time, weekday, weekNumber },
+        displayMessage: summary
+      };
+    },
+  },
 ];
 
 // ============ TOOL REGISTRY ============
