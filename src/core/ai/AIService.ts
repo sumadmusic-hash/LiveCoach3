@@ -1,9 +1,11 @@
 import { settingsRepository } from '../db/repositories';
+import { toolsToFunctionDefinitions, executeTool, type ToolCall } from './tools';
 
 export interface StreamCallbacks {
   onToken: (token: string) => void;
   onDone: (fullText: string) => void;
   onError: (error: string) => void;
+  onToolCall?: (toolCall: ToolCall, result: { success: boolean; displayMessage?: string; data?: unknown }) => void;
 }
 
 export async function streamAIResponse(
@@ -36,10 +38,23 @@ export async function streamAIResponse(
         messages: [
           {
             role: 'system',
-            content: 'Du bist LifeOS, ein persönlicher Life-Assistent. Antworte kurz, konkret und motivierend auf Deutsch. Du hilfst bei Aufgaben, Zielen, Gewohnheiten und Reflexion.'
+            content: `Du bist LifeOS, ein persönlicher Life-Assistent. Antworte kurz, konkret und motivierend auf Deutsch. Du hilfst bei Aufgaben, Zielen, Gewohnheiten und Reflexion.
+
+WICHTIG: Du hast Zugriff auf Tools, mit denen du die App bedienen kannst. Nutze sie aktiv!
+- Wenn der Nutzer eine Aufgabe erstellen will → create_task
+- Wenn der Nutzer Aufgaben sehen will → list_tasks
+- Wenn der Nutzer eine Aufgabe erledigen will → complete_task
+- Wenn der Nutzer ein Ziel erstellen will → create_goal
+- Wenn der Nutzer eine Gewohnheit loggen will → log_habit
+- Wenn der Nutzer einen Überblick will → get_today_summary
+- Wenn der Nutzer zu einem Modul navigieren will → navigate_to
+
+Führe Tools aus, wenn der Nutzer eine Aktion wünscht. Antworte danach mit einer kurzen Bestätigung.`
           },
           ...messages.map(m => ({ role: m.role, content: m.content }))
         ],
+        tools: toolsToFunctionDefinitions(),
+        tool_choice: 'auto',
         stream: true,
         max_tokens: 1024,
         temperature: 0.7,
@@ -69,6 +84,7 @@ export async function streamAIResponse(
     const decoder = new TextDecoder();
     let fullText = '';
     let buffer = '';
+    const toolCalls: Map<number, { id: string; name: string; arguments: string }> = new Map();
 
     while (true) {
       const { done, value } = await reader.read();
@@ -85,14 +101,115 @@ export async function streamAIResponse(
 
         try {
           const json = JSON.parse(trimmed.slice(6));
-          const content = json.choices?.[0]?.delta?.content;
-          if (content) {
-            fullText += content;
-            callbacks.onToken(content);
+          const delta = json.choices?.[0]?.delta;
+          
+          if (delta?.content) {
+            fullText += delta.content;
+            callbacks.onToken(delta.content);
+          }
+          
+          if (delta?.tool_calls) {
+            for (const tc of delta.tool_calls) {
+              const idx = tc.index as number;
+              if (!toolCalls.has(idx)) {
+                toolCalls.set(idx, { id: tc.id || '', name: '', arguments: '' });
+              }
+              const existing = toolCalls.get(idx)!;
+              if (tc.id) existing.id = tc.id;
+              if (tc.function?.name) existing.name += tc.function.name;
+              if (tc.function?.arguments) existing.arguments += tc.function.arguments;
+            }
           }
         } catch {
           // Skip malformed chunks
         }
+      }
+    }
+
+    // Execute tool calls if any
+    if (toolCalls.size > 0) {
+      const toolResults: { role: string; content: string; tool_call_id?: string }[] = [];
+      const assistantToolCalls = Array.from(toolCalls.values()).map(tc => ({
+        id: tc.id,
+        type: 'function' as const,
+        function: { name: tc.name, arguments: tc.arguments },
+      }));
+      
+      for (const tc of toolCalls.values()) {
+        try {
+          const args = JSON.parse(tc.arguments);
+          const result = await executeTool({ name: tc.name, arguments: args });
+          toolResults.push({
+            role: 'tool',
+            content: JSON.stringify({ success: result.success, message: result.displayMessage || result.error || 'OK' }),
+            tool_call_id: tc.id,
+          });
+          callbacks.onToolCall?.({ name: tc.name, arguments: args }, { success: result.success, displayMessage: result.displayMessage, data: result.data });
+        } catch {
+          toolResults.push({
+            role: 'tool',
+            content: JSON.stringify({ success: false, message: 'Tool-Ausführung fehlgeschlagen' }),
+            tool_call_id: tc.id,
+          });
+        }
+      }
+      
+      // Send tool results back to get final response
+      try {
+        const followUpResponse = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`,
+          },
+          body: JSON.stringify({
+            model,
+            messages: [
+              { role: 'system', content: 'Du bist LifeOS, ein persönlicher Life-Assistent. Antworte kurz, konkret und motivierend auf Deutsch. Bestätige ausgeführte Aktionen kurz.' },
+              ...messages.map(m => ({ role: m.role, content: m.content })),
+              { role: 'assistant', tool_calls: assistantToolCalls, content: null },
+              ...toolResults,
+            ],
+            stream: true,
+            max_tokens: 512,
+            temperature: 0.7,
+          }),
+          signal,
+        });
+        
+        if (followUpResponse.ok && followUpResponse.body) {
+          const followUpReader = followUpResponse.body.getReader();
+          let followUpBuffer = '';
+          
+          while (true) {
+            const { done, value } = await followUpReader.read();
+            if (done) break;
+            followUpBuffer += decoder.decode(value, { stream: true });
+            const followUpLines = followUpBuffer.split('\n');
+            followUpBuffer = followUpLines.pop() || '';
+            
+            for (const line of followUpLines) {
+              const trimmed = line.trim();
+              if (!trimmed || !trimmed.startsWith('data: ')) continue;
+              const data = trimmed.slice(6);
+              if (data === '[DONE]') continue;
+              try {
+                const json = JSON.parse(data);
+                const content = json.choices?.[0]?.delta?.content;
+                if (content) {
+                  fullText += content;
+                  callbacks.onToken(content);
+                }
+              } catch { /* skip */ }
+            }
+          }
+        }
+      } catch {
+        const toolSummary = toolResults.map(r => {
+          try { return JSON.parse(r.content).message; } catch { return r.content; }
+        }).join('\n');
+        fullText = toolSummary;
+        callbacks.onToken(toolSummary);
       }
     }
 

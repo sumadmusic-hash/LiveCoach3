@@ -1,16 +1,20 @@
 import { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { chatRepository, settingsRepository } from '../../core/db/repositories';
 import type { ChatMessage } from '../../core/schemas';
 import { streamAIResponse } from '../../core/ai/AIService';
-import { Send, StopCircle, Trash2, Sparkles, AlertCircle } from 'lucide-react';
+import { Send, StopCircle, Trash2, Sparkles, AlertCircle, Wrench } from 'lucide-react';
 import { useAiSessionStore } from '../../core/state/stores';
 
 export default function ChatView() {
+  const navigate = useNavigate();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(true);
   const [streamText, setStreamText] = useState('');
   const [error, setError] = useState('');
+  const [activeTool, setActiveTool] = useState<string | null>(null);
+  const [toolResults, setToolResults] = useState<{ name: string; message: string; success: boolean }[]>([]);
   const [settings, setSettings] = useState<{ aiProvider?: string; aiModel?: string; aiApiKey?: string; aiBaseUrl?: string } | null>(null);
   const { isStreaming, setStreaming, abortController, setAbortController } = useAiSessionStore();
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -34,6 +38,8 @@ export default function ChatView() {
   async function sendMessage() {
     if (!input.trim()) return;
     setError('');
+    setToolResults([]);
+    setActiveTool(null);
     const userMsg = await chatRepository.create({ role: 'user', content: input.trim(), toolCalls: [] });
     const updatedMessages = [...messages, userMsg];
     setMessages(updatedMessages);
@@ -75,6 +81,24 @@ export default function ChatView() {
         onToken: (token) => {
           setStreamText(prev => prev + token);
         },
+        onToolCall: (toolCall, result) => {
+          setActiveTool(toolCall.name);
+          setToolResults(prev => [...prev, { 
+            name: toolCall.name, 
+            message: result.displayMessage || 'Ausgeführt',
+            success: result.success 
+          }]);
+          
+          // Navigate if it's a navigation tool call
+          if (toolCall.name === 'navigate_to' && result.success) {
+            const data = result.data as { route?: string } | undefined;
+            if (data?.route) {
+              setTimeout(() => navigate(data.route!), 500);
+            }
+          }
+          
+          setTimeout(() => setActiveTool(null), 2000);
+        },
         onDone: async (fullText) => {
           if (fullText) {
             const aiMsg = await chatRepository.create({
@@ -89,6 +113,7 @@ export default function ChatView() {
           setStreamText('');
           setStreaming(false);
           setAbortController(null);
+          setActiveTool(null);
         },
         onError: (err) => {
           setError(err);
@@ -168,6 +193,29 @@ export default function ChatView() {
             </div>
           </div>
         ))}
+        {activeTool && (
+          <div className="flex justify-start">
+            <div className="px-4 py-2 rounded-xl bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800 text-sm">
+              <div className="flex items-center gap-2">
+                <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-indigo-600"></div>
+                <span className="text-indigo-700 dark:text-indigo-300">
+                  Führe <code className="font-mono">{activeTool}</code> aus...
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+        {toolResults.length > 0 && !activeTool && (
+          <div className="flex justify-start">
+            <div className="max-w-[80%] space-y-1">
+              {toolResults.map((tr, i) => (
+                <div key={i} className={`px-3 py-2 rounded-lg text-xs ${tr.success ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300' : 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300'}`}>
+                  {tr.success ? '✅' : '❌'} {tr.message}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
         {streamText && (
           <div className="flex justify-start">
             <div className="max-w-[80%] px-4 py-2.5 rounded-2xl rounded-bl-md bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-sm">
